@@ -46,32 +46,9 @@ sub _version {
     print colored ['green'],"$PROGNAME v$version\n";
 }
 
-sub _help {
+sub _more_info {
     _version;
     print qq|
-
-    Use:
-       $PROGNAME --instances\|--regions {--help\|--version\|--search <type=item>\|--config <opt=val>}
-
-        --instances                 display instance info
-        --regions                   displays region/zone/vpc info
-        --output <format>           print to file as well as screen
-            valid formats:
-                text                output to text file
-                json                output to json formatted file
-        --help                      displays this help screen
-        --version                   displays script version
-        --search <type=item>        search for specific items
-            valid searches:
-                instance=<instance id>
-                name=<hostname>
-        --conf <opt=val>            set EC2 config options
-            valid options:
-                region=<region>
-                id=<id>
-                url=<endpoint>
-                key=<secret key>
-
     * Short options can be given as well: "-i" instead of --instances, etc
 
     * Users can set environment variables or use "--conf <opt=val>" to specify EC2 options
@@ -91,15 +68,53 @@ sub _help {
         be shown and then the next search request will be processed.
 
     * Hostname searches automatically will be wildcard searches (*<name>*) so the more
-        exact the name entered, the more precise the results.
+        exact the name entered, the more precise the results.  Searches are case
+        sensitive.
 
     * Multiple "--output" formats can be selected
 
     To do:
         * Ability to create {instances,vpcs,?}
         * Fix (implement) JSON output
+        * Search by:
+            Instance Type
+            State (running, terminated, etc)
+            Tags (tag:value)
         * ?
 
+
+|;
+}
+
+sub _help {
+    _version;
+    print qq|
+
+    Use:
+       $PROGNAME --instances\|--regions\|--ami {--help\|--version\|--search <type=item>\|--config <opt=val>}
+
+        --instances                 display instancs in curent region
+        --regions                   displays info on all regions
+                                        zones vpcs AMIs
+        --ami                       displays AMI info for current region
+        --output <format>           print to file as well as screen
+            valid formats:
+                text                output to text file
+                json                output to json formatted file
+        --help                      displays this help screen
+        --version                   displays script version
+        --search <type=item>        search for specific items
+            valid searches:
+                instance=<instance id>
+                name=<hostname>
+        --conf <opt=val>            set EC2 config options
+            valid options:
+                region=<region>
+                id=<id>
+                url=<endpoint>
+                key=<secret key>
+
+	See "$PROGNAME --more" for more information and usage
 
 |;
 }
@@ -166,16 +181,32 @@ sub _get_opts {
     	'config=s'          =>\@CONFIG_OPTIONS,
 	 	'regions'	  		=>\$SHOW_REGIONS,
 	 	'instances'			=>\$SHOW_INSTANCES,
+	 	'ami'			    =>\$SHOW_AMI,
         'search=s'          =>\@SEARCHES,
         'output:s'          =>\@OUTPUT,
+		'more'				=>\$MORE,
+        ''                  =>\$MO,
         'help|?'        	=>\$HELP);
 
-    &_check_vars;
+	if ($MO) {
+        print "Invalid syntax given in options, please check your syntax\n\n";
+        print "\t Command line was: \`$commandline\`\n\n";
+        sleep(3);
+    	_help;
+        &_myexit;
+    }
 
 	if ($HELP) {
     	_help;
         &_myexit;
     }
+
+    if ($MORE) {
+    	_more_info;
+        &_myexit;
+    }
+
+    &_check_vars;
 
     if (@OUTPUT){
         $output="true";
@@ -214,6 +245,10 @@ sub _get_opts {
             _help;
             _myexit ($EC);
         }
+    }
+
+    if ($SHOW_AMI){
+        &_show_ami;
     }
 
     if (@SEARCHES) {
@@ -305,6 +340,141 @@ sub _get_region_info {
         return (@r_name,@regions);
 }
 
+sub is_error {
+    defined shift->error();
+}
+
+sub _show_ami_zone{
+    $ec2_access_id = shift;
+    $ec2_secret_key = shift;
+    $ec2_region= shift;
+    $imageowner = "self";
+    $ec2a = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url);
+    @AMI  = $ec2a->describe_images(-owner=>$imageowner);
+    if (! @AMI) {
+        printf("%-21s %-50s\n","    ","No AMIs found");
+        &_print_output ("\t\tNo AMIs found\n");
+        return;
+    }
+	foreach (sort @AMI){
+        $OwnerID        = $_->imageOwnerId;
+        $Desc           = $_->description;
+        $State          = $_->imageState;
+        $Name           = $_->name;
+        $ImageType      = $_->imageType;
+        $VirtType       = $_->virtualizationType;
+        $RootDevType    = $_->rootDeviceType;
+        $Public         = $_->isPublic;
+        $Arc            = $_->architecture;
+        $HV             = $_->hypervisor;
+        $i_tags         = $_->tags;
+
+        if ($Public){
+            $Public = "True";
+        } else {
+            $Public = "False";
+        }
+		printf("%-21s %-50s\n","    ","$_");
+#        printf("%-26s %-50s\n", "    ","Owner: $OwnerID");
+#        printf("%-26s %-50s\n", "    ","Name: $Name");
+        printf("%-26s %-50s\n", "    ","Description: $Desc");
+#        printf("%-26s %-50s\n", "    ","State: $State");
+#        printf("%-26s %-50s\n", "    ","Image Type: $ImageType");
+        printf("%-26s %-50s\n", "    ","Architecture: $Arc");
+        printf("%-26s %-50s\n", "    ","Virtualization: $VirtType");
+#        printf("%-26s %-50s\n", "    ","Hypervisor: $HV");
+        printf("%-26s %-50s\n", "    ","Root Device Type: $RootDevType");
+#        printf("%-26s %-50s\n", "    ","Public: $Public");
+        &_print_output ("\t\t$_\n");
+#        &_print_output ("\t\t   Owner: $OwnerID\n");
+#        &_print_output ("\t\t   Name: $Name\n");
+        &_print_output ("\t\t   Description: $Desc\n");
+#        &_print_output ("\t\t   State: $State\n");
+#        &_print_output ("\t\t   Image Type: $ImageType\n");
+        &_print_output ("\t\t   Architecture: $Arc\n");
+        &_print_output ("\t\t   Virtualization: $VirtType\n");
+#        &_print_output ("\t\t   Hypervisor: $HV\n");
+        &_print_output ("\t\t   Root Device Type: $RootDevType\n");
+#        &_print_output ("\t\t   Public: $Public\n");
+
+        unless ( ! %$i_tags ){
+				printf("%-26s %-50s\n", "    ","Tags:");
+                &_print_output ("\t\t   Tags:\n");
+                foreach my $key (sort keys %$i_tags) {
+                	$value = $i_tags->{$key};
+                	printf("%-30s %-50s\n","    ","$key: $value");
+                	&_print_output ("\t\t\t$key: $value\n");
+                }
+        }
+        print "\n";
+        &_print_output ("\n");
+    }
+}
+
+sub _show_ami {
+    $imageowner = "self";
+    print colored ['green'],"Gathering AMI info for $ec2_region...\n\n";
+    &_print_output ("Gathering AMI info for $ec2_region...\n\n");
+    $ec2       = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-endpoint => $ec2_url,-region=>$ec2_region);
+    @AMI  = $ec2->describe_images(-owner=>$imageowner);
+	unless (@AMI) {
+		die "Error: ",$ec2->error if $ec2->is_error;
+		print "No appropriate images found\n";
+	}
+    foreach (sort @AMI){
+        $OwnerID        = $_->imageOwnerId;
+        $Desc           = $_->description;
+        $State          = $_->imageState;
+        $Name           = $_->name;
+        $ImageType      = $_->imageType;
+        $VirtType       = $_->virtualizationType;
+        $RootDevType    = $_->rootDeviceType;
+        $Public         = $_->isPublic;
+        $Arc            = $_->architecture;
+        $HV             = $_->hypervisor;
+        $i_tags         = $_->tags;
+
+        if ($Public){
+            $Public = "True";
+        } else {
+            $Public = "False";
+        }
+        printf("%s%s%s\n", "[", colored("$_",'yellow'),"]");
+    	printf("%-30s %-50s\n", colored("    Owner:",'blue'),$OwnerID);
+    	printf("%-30s %-50s\n", colored("    Name:",'blue'),$Name);
+    	printf("%-30s %-50s\n", colored("    Description:",'blue'),$Desc);
+    	printf("%-30s %-50s\n", colored("    State:",'blue'),$State);
+    	printf("%-30s %-50s\n", colored("    Image Type:",'blue'),$ImageType);
+    	printf("%-30s %-50s\n", colored("    Architecture:",'blue'),$Arc);
+    	printf("%-30s %-50s\n", colored("    Virtualization:",'blue'),$VirtType);
+    	printf("%-30s %-50s\n", colored("    Hypervisor:",'blue'),$HV);
+    	printf("%-30s %-50s\n", colored("    Root Device Type:",'blue'),$RootDevType);
+    	printf("%-30s %-50s\n", colored("    Public:",'blue'),$Public);
+        &_print_output ("[$_]\n");
+    	&_print_output ("\tOwner: $OwnerID\n");
+    	&_print_output ("\tName: $Name\n");
+    	&_print_output ("\tDescription:\ $Desc\n");
+    	&_print_output ("\tState: $State\n");
+    	&_print_output ("\tImage Type: $ImageType\n");
+    	&_print_output ("\tArchitecture: $Arc\n");
+    	&_print_output ("\tVirtualization: $VirtType\n");
+    	&_print_output ("\tHypervisor: $HV\n");
+    	&_print_output ("\tRoot Device Type: $RootDevType\n");
+    	&_print_output ("\tPublic: $Public\n");
+
+        unless ( ! %$i_tags ){
+        	print colored ['blue'],"    Tags:\n";
+        	&_print_output ("\tTags:\n");
+        	foreach my $key (sort keys %$i_tags) {
+            	$value = $i_tags->{$key};
+            	printf("%-21s %-50s\n","    ","$key: $value");
+            	&_print_output ("\t   $key: $value\n");
+        	}
+    	}
+       	print "\n";
+       	&_print_output ("\n");
+    }
+}
 sub _show_regions {
     &_get_region_info;
     print colored ['green'],"Gathering region info...\n\n";
@@ -328,11 +498,29 @@ sub _show_regions {
 		if (@vpc) {
 			printf("%-30s\n", colored("    VPCs:",'blue'));
 			&_print_output ("\tVPCs:\n");
-        	foreach $v (sort @vpc){
+            foreach $v (sort @vpc){
 				printf("%-21s %-50s\n","    ",$v);
-				&_print_output ("\t\t$v\n");
-			}
+                &_print_output ("\t\t$v\n");
+                $v = $ec2->describe_vpcs(-vpc_id=>$v);
+                $tenancy = $v->instanceTenancy;
+                $cidr    = $v->cidrBlock;
+                $state   = $v->State;
+                $v_tags  = $v->tags;
+                if ($v_tags->{Name}){
+                    printf("%-26s %-50s\n","    ","Name: $v_tags->{Name}");
+                    &_print_output ("\t\t   Name: $v_tags->{Name}\n");
+                }
+                printf("%-26s %-50s\n","    ","CIDR Block: $cidr");
+                printf("%-26s %-50s\n","    ","Tenancy: $tenancy");
+                printf("%-26s %-50s\n\n","    ","State: $state");
+                &_print_output ("\t\t   CIDR Block: $cidr\n");
+                &_print_output ("\t\t   Tenancy: $tenancy\n");
+                &_print_output ("\t\t   State: $state\n\n");
+            }
 		}
+		printf("%-30s\n", colored("    AMIs:",'blue'));
+        &_print_output ("\tAMIs:\n");
+		&_show_ami_zone ($ec2_access_id,$ec2_secret_key,$name);
         print "\n";
 		&_print_output ("\n");
     }
@@ -341,18 +529,24 @@ sub _show_regions {
 }
 
 sub _search_hosts () {
+    undef @i;
     $s_region=shift;
     $s_name=shift;
+    @TAGS=('Name','Hostname');
     if ($s_region) {$ec2_region = $s_region;}
     $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
     if ($s_name){
-        #print "Searching for $s_name in $s_region...\n";
-        @i = $ec2->describe_instances(-filter=>{'tag:Name'=> $s_name});
+#        @i = $ec2->describe_instances(-filter=>{'tag:Name'=> $s_name});
+        foreach $tag (@TAGS){
+            @ti = $ec2->describe_instances(-filter=>{"tag:$tag"=> $s_name});
+            push @itags, @ti;
+        }
     } else {
 		$EC="1";
         print "\t!!! Error: No name was specified\n";
         _myexit ($EC);
     }
+    @i = do { my %seen; grep { !$seen{$_}++ } @itags };
     return @i;
 }
 
@@ -414,10 +608,19 @@ sub _show_instances {
     $tags          = $instance->tags;
 
     if ($tags){
-		if ($tags->{Name}) {
+        if ($tags->{Hostname}) {
+            printf("%-30s %-50s\n", colored("    Hostname",'blue'),$tags->{Hostname});
+            &_print_output ("\tHostname:\t$tags->{Hostname}\n");
+        } elsif ($tags->{Name}) {
     		printf("%-30s %-50s\n", colored("    Hostname",'blue'),$tags->{Name});
 			&_print_output ("\tHostname:\t$tags->{Name}\n");
 		}
+    }
+
+    $v = $ec2->describe_vpcs(-vpc_id=>$vpc);
+    $v_tags  = $v->tags;
+    if ($v_tags->{Name}){
+        $vpc = $vpc . " ($v_tags->{Name})";
     }
 
     printf("%-30s %-50s\n", colored("    Instance Type:",'blue'),$type);
@@ -449,7 +652,7 @@ sub _show_instances {
         print colored ['blue'],"    User Data:\n";
 		&_print_output ("\tUser Data:\n");
         @lines = split /\n/, $data;
-        foreach $line (@lines) {
+        foreach $line (sort @lines) {
             printf("%-21s %-50s\n","    ",$line);
 			&_print_output ("\t\t\t$line\n");
         }
@@ -562,6 +765,7 @@ if (! $ARGV[0]) {
 }
 
 # process options and gather/display results in _get_opts
+$commandline = join " ", $0, @ARGV;
 _get_opts;
 
 # cleanup and exit
