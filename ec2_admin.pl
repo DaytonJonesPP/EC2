@@ -65,7 +65,8 @@ sub _more_info {
         "$PROGNAME -s name=host1.mydomain.com -s inst=i-237f8d --search name=test1"
 
     * Searches will take place in all regions, for both names and instances.  Results will
-        be shown and then the next search request will be processed.
+        be shown and then the next search request will be processed.  Only non-terminated
+        instances will be searched for and shown.
 
     * Hostname searches automatically will be wildcard searches (*<name>*) so the more
         exact the name entered, the more precise the results.  Searches are case
@@ -93,7 +94,7 @@ sub _help {
     Use:
        $PROGNAME --instances\|--regions\|--ami {--help\|--version\|--search <type=item>\|--config <opt=val>}
 
-        --instances                 display instancs in curent region
+        --instances                 display non-terminated instances in current region
         --regions                   displays info on all regions
                                         zones vpcs AMIs
         --ami                       displays AMI info for current region
@@ -315,6 +316,7 @@ sub _get_opts {
     }
 
     if ($SHOW_INSTANCES) {
+        undef @i;
 		&_get_instances;
 		foreach (@i) {
         	printf("%s%s%s\n", "[", colored($_,'yellow'), "]");
@@ -530,15 +532,16 @@ sub _show_regions {
 
 sub _search_hosts () {
     undef @i;
+    undef @itags;
+    undef @ti;
     $s_region=shift;
     $s_name=shift;
     @TAGS=('Name','Hostname');
-    if ($s_region) {$ec2_region = $s_region;}
-    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
+    if ($s_region) {$ec2_s_region = $s_region;}
+    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_s_region,-endpoint => $ec2_url) or die "Error: $!\n";
     if ($s_name){
-#        @i = $ec2->describe_instances(-filter=>{'tag:Name'=> $s_name});
         foreach $tag (@TAGS){
-            @ti = $ec2->describe_instances(-filter=>{"tag:$tag"=> $s_name});
+            @ti = $ec2->describe_instances(-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped'],"tag:$tag"=> $s_name});
             push @itags, @ti;
         }
     } else {
@@ -562,13 +565,14 @@ sub _show_hosts {
 sub _search_instances () {
     $s_region=shift;
     $s_id=shift;
+    undef @i;
     if ($s_region) {$ec2_region = $s_region;}
     $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
     if ($s_id){
-        @i = $ec2->describe_instances(-instance_id=>$s_id);
+        @i = $ec2->describe_instances(-instance_id=>$s_id,-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped']});
         @i = sort @i;
     } else {
-        @i = $ec2->describe_instances();
+        @i = $ec2->describe_instances(-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped']});
         @i = sort @i;
     }
     return @i;
