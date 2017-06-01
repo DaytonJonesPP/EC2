@@ -349,9 +349,9 @@ sub is_error {
 sub _show_ami_zone{
     $ec2_access_id = shift;
     $ec2_secret_key = shift;
-    $ec2_region= shift;
+    $my_ec2_region= shift;
     $imageowner = "self";
-    $ec2a = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url);
+    $ec2a = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$my_ec2_region,-endpoint => $ec2_url);
     @AMI  = $ec2a->describe_images(-owner=>$imageowner);
     if (! @AMI) {
         printf("%-21s %-50s\n","    ","No AMIs found");
@@ -566,8 +566,12 @@ sub _search_instances () {
     $s_region=shift;
     $s_id=shift;
     undef @i;
-    if ($s_region) {$ec2_region = $s_region;}
-    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
+    if ($s_region) {i
+        $my_ec2_region = $s_region;
+    }else{
+        $my_ec2_region = $ec2_region;
+    }
+    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$my_ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
     if ($s_id){
         @i = $ec2->describe_instances(-instance_id=>$s_id,-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped']});
         @i = sort @i;
@@ -735,7 +739,7 @@ sub _myexit{
 	if ($EC eq "2") {
 		system("rm -f /tmp/$OFILE.*");
 	}
-	if ((@OUTPUT) && (! $EC eq "2")) {
+	if ( @OUTPUT && $EC ne "2" ) {
 		foreach (@OUTPUT) {
 			if (($_ eq "text") || ($_ eq "") || ($_ eq "t")) {
 				$myOFILE=$OFILE . ".txt";
@@ -747,10 +751,11 @@ sub _myexit{
 				push @files,"/tmp/$myOFILE";
 			}
 		}
-		print ( "=" x $sw);
-		print "\nOutput written to:\n";
+        print "\n";
+        print colored ['cyan'],("=" x $sw);
+		print "\n\nOutput written to:\n";
 		foreach (@files){
-			print "\t$_\n";
+			print colored ['yellow'],"\t$_\n";
 		}
 		print "\n";
 	}
@@ -775,4 +780,4 @@ $commandline = join " ", $0, @ARGV;
 _get_opts;
 
 # cleanup and exit
-_myexit;
+_myexit 0;
