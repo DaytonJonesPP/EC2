@@ -566,7 +566,7 @@ sub _search_instances () {
     $s_region=shift;
     $s_id=shift;
     undef @i;
-    if ($s_region) {i
+    if ($s_region) {
         $my_ec2_region = $s_region;
     }else{
         $my_ec2_region = $ec2_region;
