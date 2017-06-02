@@ -317,15 +317,20 @@ sub _get_opts {
                 foreach my $t (@values){
                     next if ($t eq "");
                     print "Searching for \"$t\" instances in all regions...\n";
-                    &_print_output ("Searching for \$t\ instances in all regions...\n");
+                    &_print_output ("Searching for \"$t\ instances in all regions...\n");
                     foreach my $r (@r_name){
                         &_search_types($r,$t);
                         $count=scalar(@i);
 						if ($count lt "1"){
                             #print "type not found\n";
                         } else {
+                            $found="true";
                             _show_types(@i);
                         }
+                    }
+                    if (! $found){
+                        print "Sorry, no $t instances found\n\n";
+                        &_print_output ("Sorry, no $t instances found\n\n");
                     }
                 }
             }
