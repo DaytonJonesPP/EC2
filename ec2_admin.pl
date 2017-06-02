@@ -59,7 +59,6 @@ sub _more_info {
 
     "--config <opt=val>" will override environment variables
 
-    * At least one of "--instances" or "--regions" needs to be given, both can be given.
 
     * Multiple "--search" options can be specified, user can mix types:
         "$PROGNAME -s name=host1.mydomain.com -s inst=i-237f8d --search name=test1"
@@ -68,7 +67,7 @@ sub _more_info {
         be shown and then the next search request will be processed.  Only non-terminated
         instances will be searched for and shown.
 
-    * Hostname searches automatically will be wildcard searches (*<name>*) so the more
+    *  Only hostname searches will wildcard searches (*<name>*) so the more
         exact the name entered, the more precise the results.  Searches are case
         sensitive.
 
@@ -78,7 +77,6 @@ sub _more_info {
         * Ability to create {instances,vpcs,?}
         * Fix (implement) JSON output
         * Search by:
-            Instance Type
             State (running, terminated, etc)
             Tags (tag:value)
         * ?
@@ -108,6 +106,7 @@ sub _help {
             valid searches:
                 instance=<instance id>
                 name=<hostname>
+                type=<instance type>
         --conf <opt=val>            set EC2 config options
             valid options:
                 region=<region>
@@ -264,6 +263,9 @@ sub _get_opts {
             } elsif ($type eq "name") {
                 $s_name=$s_name . ":" . $what;
                 $sn="true";
+            } elsif ($type eq "type") {
+                $s_type=$s_type . ":" . $what;
+                $st="true";
             }
         }
         if ($si){
@@ -305,6 +307,30 @@ sub _get_opts {
                         } else {
                             _show_hosts(@i);
                         }
+                    }
+                }
+            }
+        }
+        if ($st){
+            foreach ($s_type){
+                my @values = split(/:/, $s_type);
+                foreach my $t (@values){
+                    next if ($t eq "");
+                    print "Searching for \"$t\" instances in all regions...\n";
+                    &_print_output ("Searching for \"$t\ instances in all regions...\n");
+                    foreach my $r (@r_name){
+                        &_search_types($r,$t);
+                        $count=scalar(@i);
+						if ($count lt "1"){
+                            #print "type not found\n";
+                        } else {
+                            $found="true";
+                            _show_types(@i);
+                        }
+                    }
+                    if (! $found){
+                        print "Sorry, no $t instances found\n\n";
+                        &_print_output ("Sorry, no $t instances found\n\n");
                     }
                 }
             }
@@ -537,8 +563,12 @@ sub _search_hosts () {
     $s_region=shift;
     $s_name=shift;
     @TAGS=('Name','Hostname');
-    if ($s_region) {$ec2_s_region = $s_region;}
-    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$ec2_s_region,-endpoint => $ec2_url) or die "Error: $!\n";
+    if ($s_region) {
+        $my_ec2_region = $s_region;
+    }else{
+        $my_ec2_region = $ec2_region;
+    }
+	$ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$my_ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
     if ($s_name){
         foreach $tag (@TAGS){
             @ti = $ec2->describe_instances(-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped'],"tag:$tag"=> $s_name});
@@ -560,6 +590,37 @@ sub _show_hosts {
 		&_print_output ("[$id]\n");
         _show_instances($id);
     }
+}
+
+sub _search_types () {
+	$s_region=shift;
+	$s_type=shift;
+	if ($s_region) {
+    	$my_ec2_region = $s_region;
+    }else{
+        $my_ec2_region = $ec2_region;
+    }
+    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$my_ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
+	if ($s_type) {
+		@i = $ec2->describe_instances(-filter=>{'instance-type'=>$s_type,'instance-state-name'=>['pending','running','shutting-down','stopping','stopped']});
+	} else {
+		$EC="1";
+        print "\t!!! Error: No name was specified\n";
+        _myexit ($EC);
+    }
+	return @i;
+}
+
+sub _show_types {
+    $count=scalar(@i);
+    print colored ['green'],"\n$count $s_type instances found in $s_region\n\n";
+    &_print_output ("\n$count $s_type instances found in $s_region\n\n");
+	foreach $h (@i){
+		next if ($h eq "");
+		printf("%s%s%s\n", "[", colored($h,'yellow'), "]");
+        &_print_output ("[$h]\n");
+        _show_instances($h);
+	}
 }
 
 sub _search_instances () {
