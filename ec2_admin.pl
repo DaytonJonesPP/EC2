@@ -5,10 +5,11 @@
 #
 #        USAGE: ec2_admin.pl
 #
-#  DESCRIPTION:
+#  DESCRIPTION: A useful script to poll AWS and display infomation about your
+#               EC2 environment
 #
 #      OPTIONS: ---
-# REQUIREMENTS: ---
+# REQUIREMENTS: AWS id/secret credentials
 #        NOTES: ---
 #       AUTHOR: Dayton Jones (dj), djones@proofpoint.com
 #      COMPANY: Proofpoint
