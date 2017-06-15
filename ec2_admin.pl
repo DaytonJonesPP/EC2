@@ -717,10 +717,10 @@ sub _show_instances {
 		}
     }
 
-    $v = $ec2->describe_vpcs(-vpc_id=>$vpc);
-    $v_tags  = $v->tags;
-    if ($v_tags->{Name}){
-        if ( $vpc ne ""){
+    if ($vpc ne ""){
+        $v = $ec2->describe_vpcs(-vpc_id=>$vpc);
+        $v_tags  = $v->tags;
+        if ($v_tags->{Name}){
             $vpc = $vpc . " ($v_tags->{Name})";
         }
     }
