@@ -84,10 +84,9 @@ sub _more_info {
     To do:
         * Ability to create {instances,vpcs,?}
         * Control instances (stop, start, terminate)
-        * Fix JSON output
-            Instance State/Zone are null
         * Search by:
             State (running, terminated, etc)
+            Compound search - "type=m4.large AND region=us-west-2"
         * Optimize and remove duplication
             * do region lookup once and store instead of calling for every command
             * breakout any duplicated routines (search, etc)
@@ -159,14 +158,14 @@ sub _mask_it {
 		my @mask=split( '', $mask );
 		my @secret=split( '', $ec2_secret_key );
 		my $masked_secret = join '', pairwise { $a ? 'x' : $b } @mask, @secret;
-        push @{ $h_href{$OFILE}{INFO}{EC2}{"Secret Key"}},$masked_secret;
+        $h_href{$OFILE}{INFO}{EC2}{"Secret Key"}=$masked_secret;
 	}
 	if ($u_type eq "id"){
 		my $mask='XXXXXXXXXXXXXXX';
 		my @mask=split( '', $mask );
 		my @eid=split( '', $ec2_access_id );
         $masked_id = join '', pairwise { $a ? 'x' : $b } @mask, @eid;
-        push @{ $h_href{$OFILE}{INFO}{EC2}{"Access ID"}},$masked_id;
+        $h_href{$OFILE}{INFO}{EC2}{"Access ID"}=$masked_id;
 	}
 }
 sub _print_json {
@@ -261,10 +260,10 @@ sub _get_opts {
                 %h_href=();
 				&_mask_it ("id");
 				&_mask_it ("secret");
-                push @{ $h_href{$OFILE}{INFO}{Execution}{Command}},$commandline;
-                push @{ $h_href{$OFILE}{INFO}{EC2}{"Default Region"}},$ec2_region;
-                push @{ $h_href{$OFILE}{INFO}{EC2}{"API Endpoint"}},$ec2_url;
-                push @{ $h_href{$OFILE}{INFO}{Execution}{"User"}},$USER;
+                $h_href{$OFILE}{INFO}{Execution}{Command}=$commandline;
+                $h_href{$OFILE}{INFO}{EC2}{"Default Region"}=$ec2_region;
+                $h_href{$OFILE}{INFO}{EC2}{"API Endpoint"}=$ec2_url;
+                $h_href{$OFILE}{INFO}{Execution}{"User"}=$USER;
 			} else {
 				$EC="2";
 				print "Invalid output method selected: only text or json supported\n";
@@ -318,7 +317,6 @@ sub _get_opts {
                 $st="true";
             }elsif ($type eq "tag") {
                 $s_tag=$s_tag . "::" . $what;
-                #$s_tag = lc $s_tag;
                 $s_t="true";
             }
         }
@@ -463,7 +461,7 @@ sub _get_region_info {
         push @r_name,$name;
     }
     $r_count=scalar(@regions);
-    push @{ $h_href{$OFILE}{INFO}{Totals}{"Number of Regions found"}},$r_count;
+    $h_href{$OFILE}{INFO}{Totals}{"Number of Regions found"}=$r_count;
     return (@r_name,@regions);
 }
 
@@ -511,10 +509,10 @@ sub _show_ami_zone{
         &_print_txt ("\t\t   Architecture: $Arc\n");
         &_print_txt ("\t\t   Virtualization: $VirtType\n");
         &_print_txt ("\t\t   Root Device Type: $RootDevType\n");
-        push @{ $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Description}},$Desc;
-        push @{ $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Architecture}},$Arc;
-        push @{ $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Virtualization}},$VirtType;
-        push @{ $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{RootDevType}},$RootDevType;
+        $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Description}=$Desc;
+        $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Architecture}=$Arc;
+        $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Virtualization}=$VirtType;
+        $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{RootDevType}=$RootDevType;
         unless ( ! %$i_tags ){
 				printf("%-26s %-50s\n", "    ","Tags:");
                 &_print_txt ("\t\t   Tags:\n");
@@ -522,7 +520,7 @@ sub _show_ami_zone{
                 	$value = $i_tags->{$key};
                 	printf("%-30s %-50s\n","    ","$key: $value");
                 	&_print_txt ("\t\t\t$key: $value\n");
-                    push @{ $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Tags}{$key}},$value;
+                    $h_href{$OFILE}{REGIONS}{$my_ec2_region}{AMIs}{$_}{Tags}{$key}=$value;
                 }
         }
         print "\n";
@@ -541,7 +539,7 @@ sub _show_ami {
 		print "No appropriate images found\n";
 	}
     $a_count=scalar(@AMI);
-    push @{ $h_href{$OFILE}{INFO}{Totals}{"Number of AMIs found"}},$a_count;
+    $h_href{$OFILE}{INFO}{Totals}{"Number of AMIs found"}=$a_count;
     foreach (sort @AMI){
         $OwnerID        = $_->imageOwnerId;
         $Desc           = $_->description;
@@ -582,16 +580,16 @@ sub _show_ami {
     	&_print_txt ("\tHypervisor: $HV\n");
     	&_print_txt ("\tRoot Device Type: $RootDevType\n");
     	&_print_txt ("\tPublic: $Public\n");
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Owner}},$OwnerID;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Name}},$Name;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Description}},$Desc;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{State}},$State;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{ImageType}},$ImageType;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Architecture}},$Arc;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Virtualization}},$VirtType;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Hypervisor}},$HV;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{RootDeviceType}},$RootDevType;
-        push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Public}},$Public;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Owner}=$OwnerID;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Name}=$Name;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Description}=$Desc;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{State}=$State;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{ImageType}=$ImageType;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Architecture}=$Arc;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Virtualization}=$VirtType;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Hypervisor}=$HV;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{RootDeviceType}=$RootDevType;
+        $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Public}=$Public;
         unless ( ! %$i_tags ){
         	print colored ['blue'],"    Tags:\n";
         	&_print_txt ("\tTags:\n");
@@ -599,7 +597,7 @@ sub _show_ami {
             	$value = $i_tags->{$key};
             	printf("%-21s %-50s\n","    ","$key: $value");
             	&_print_txt ("\t   $key: $value\n");
-                push @{ $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Tags}{$key}},$value;
+                $h_href{$OFILE}{AMIs}{$ec2_region}{$_}{Tags}{$key}=$value;
         	}
     	}
        	print "\n";
@@ -620,11 +618,10 @@ sub _show_regions {
 		&_print_txt ("[$name]\n");
 		&_print_txt ("\tEndpoint: $url\n");
 		&_print_txt ("\tZones:\n");
-        push @{ $h_href{$OFILE}{REGIONS}{$r}{Endpoint}},$url;
-        $empty="";
+        $h_href{$OFILE}{REGIONS}{$r}{Endpoint}=$url;
         foreach $z (sort @zones) {
             printf("%-21s %-50s\n","    ",$z);
-            push @{ $h_href{$OFILE}{REGIONS}{$name}{Zones}->{$z}},$empty;
+            push @{ $h_href{$OFILE}{REGIONS}{$name}{Zones}},"$z";
 			&_print_txt ("\t\t$z\n");
         }
         $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$name) or die "Error: $!\n";
@@ -651,9 +648,9 @@ sub _show_regions {
                 &_print_txt ("\t\t   CIDR Block: $cidr\n");
                 &_print_txt ("\t\t   Tenancy: $tenancy\n");
                 &_print_txt ("\t\t   State: $state\n\n");
-                push @{ $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{CIDR}},$cidr;
-                push @{ $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{Tenancy}},$tenancy;
-                push @{ $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{State}},$state;
+                $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{CIDR}=$cidr;
+                $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{Tenancy}="$tenancy";
+                $h_href{$OFILE}{REGIONS}{$name}{VPCs}{$v}{$n}{State}="$state";
             }
 		}
 		printf("%-30s\n", colored("    AMIs:",'blue'));
@@ -729,6 +726,12 @@ sub _search_types () {
 
 sub _show_types {
     $count=scalar(@i);
+    $h_count=scalar(@i);
+    if ($h_total){
+        $h_total= $h_total + $h_count;
+    }else{
+        $h_total=$h_count;
+    }
     print colored ['green'],"\n$count $s_type instances found in $s_region\n\n";
     &_print_txt ("\n$count $s_type instances found in $s_region\n\n");
 	foreach $h (@i){
@@ -843,19 +846,19 @@ sub _show_instances {
 	&_print_txt ("\tPublic Name:\t$public_dns\n");
 	&_print_txt ("\tLaunch Time:\t$time\n");
 	&_print_txt ("\tState:\t\t$status\n");
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Name}},$NAME;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{InstanceType}},$type;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Zone}},$placement;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{VPC}},$vpc;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Subnet}},$subnet;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Reservation}},$reservationId;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{ImageId}},$imageId;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PrivateIP}},$private_ip;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PublicIP}},$public_ip;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PrivateDNS}},$private_dns;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PublicDNS}},$public_dns;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{LaunchTime}},$time;
-    push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{State}},$status;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Name}=$NAME;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{InstanceType}=$type;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Zone}="$placement";
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{VPC}=$vpc;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Subnet}=$subnet;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Reservation}=$reservationId;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{ImageId}=$imageId;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PrivateIP}=$private_ip;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PublicIP}=$public_ip;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PrivateDNS}=$private_dns;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PublicDNS}=$public_dns;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{LaunchTime}=$time;
+    $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{State}="$status";
     if ($data){
         print colored ['blue'],"    User Data:\n";
 		&_print_txt ("\tUser Data:\n");
@@ -875,7 +878,7 @@ sub _show_instances {
     		$value = $tags->{$key};
     		printf("%-21s %-50s\n","    ","$key: $value");
 			&_print_txt ("\t\t\t$key: $value\n");
-            push @{ $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Tags}{$key}},$value;
+            $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Tags}{$key}=$value;
 		}
         print "\n";
 		&_print_txt ("\n");
@@ -949,13 +952,13 @@ sub _myexit{
 				push @files,"/tmp/$myOFILE";
 			} elsif (($_ eq "json") || ($_ eq "j")) {
 				$myOFILE=$OFILE . ".json";
-                $end=`date`;
+                chomp($end=`date`);
                 $es=time();
                 $run_time = $es - $ss;
-                push @{ $h_href{$OFILE}{INFO}{Totals}{"Total Instances found"}},$h_total;
-                push @{ $h_href{$OFILE}{INFO}{Execution}{Start}},$start;
-                push @{ $h_href{$OFILE}{INFO}{Execution}{End}},$end;
-                push @{ $h_href{$OFILE}{INFO}{Execution}{Time}},"$run_time seconds";
+                $h_href{$OFILE}{INFO}{Totals}{"Total Instances found"}=$h_total;
+                $h_href{$OFILE}{INFO}{Execution}{Start}=$start;
+                $h_href{$OFILE}{INFO}{Execution}{End}=$end;
+                $h_href{$OFILE}{INFO}{Execution}{Time}="$run_time seconds";
                 &_print_json(\%h_href);
                 close($myOFILE);
 				push @files,"/tmp/$myOFILE";
@@ -987,7 +990,7 @@ if (! $ARGV[0]) {
 
 # process options and gather/display results in _get_opts
 $commandline = join " ", $0, @ARGV;
-$start=`date`;
+chomp($start=`date`);
 $ss=time();
 _get_opts;
 
