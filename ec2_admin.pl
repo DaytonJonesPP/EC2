@@ -801,6 +801,7 @@ sub _show_instances {
     $data          = $instance->userData;
     @groups        = $instance->groupSet;
     $tags          = $instance->tags;
+    @devices       = $instance->blockDeviceMapping;
 
     if ($tags){
         if ($tags->{Hostname}) {
@@ -859,6 +860,72 @@ sub _show_instances {
     $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{PublicDNS}=$public_dns;
     $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{LaunchTime}=$time;
     $h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{State}="$status";
+
+    if (@devices){
+        print colored ['blue'],"    Volumes:\n";
+        &_print_txt ("\tVolumes:\n");
+        foreach $dev (@devices) {
+            $devName   = $dev->deviceName;
+            $volume    = $dev->volume;
+            $delete    = $dev->deleteOnTermination;
+			if ($delete eq "1"){$delete="True";}else{$delete="False";}
+            @vols = $ec2->describe_volumes(-volume_id=>$volume);
+            foreach $vol (@vols) {
+                $vid    = $vol->volumeId;
+                $size  = $vol->size;
+                $snap  = $vol->snapshotId;
+                $vzone  = $vol->availabilityZone;
+                $vstatus = $vol->status;
+                $ctime = $vol->createTime;
+                $origin      = $vol->from_snapshot;
+                $enc         = $vol->encrypted;
+				$vtype		= $vol->volumeType;
+				$iops		= $vol->iops;
+                if ($enc){
+                    $enc="True";
+                }else{
+                    $enc="False";
+                }
+            printf("%-21s %-50s\n","    ","Name: $devName");
+            printf("%-26s %-50s\n","    ","ID: $vid");
+            printf("%-26s %-50s\n","    ","Type: $vtype");
+            printf("%-26s %-50s\n","    ","Delete on Termination: $delete");
+            printf("%-26s %-50s\n","    ","Size: $size GB");
+            printf("%-26s %-50s\n","    ","IOPS: $iops");
+            if ($snap){printf("%-26s %-50s\n","    ","Snap: $snap");}
+            printf("%-26s %-50s\n","    ","Zone: $vzone");
+            printf("%-26s %-50s\n","    ","Status: $vstatus");
+            printf("%-26s %-50s\n","    ","Created: $ctime");
+            if ($origin){printf("%-26s %-50s\n","    ","Origin: $origin");}
+            printf("%-26s %-50s\n\n","    ","Encrypted: $enc");
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{ID}="$vid";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Type}="$vtype";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{"Delete on Termination"}="$delete";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Size}="$size GB";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{IOPS}="$iops";
+			if ($snap){$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Snap}="$snap";}
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Zone}="$vzone";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Status}="$vstatus";
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Created}="$ctime";
+			if ($origin){$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Origin}="$origin";}
+			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Encrypted}="$enc";
+			&_print_txt ("\t\t\tName: $devName\n");
+			&_print_txt ("\t\t\t\tID: $vid\n");
+			&_print_txt ("\t\t\t\tType: $vtype\n");
+			&_print_txt ("\t\t\t\tDelete on Termination: $delete\n");
+			&_print_txt ("\t\t\t\tSize: $size GB\n");
+			&_print_txt ("\t\t\t\tIOPS: $iops\n");
+			if ($snap){&_print_txt ("\t\t\t\tSnap: $snap\n");}
+			&_print_txt ("\t\t\t\tZone: $vzone\n");
+			&_print_txt ("\t\t\t\tStatus: $vstatus\n");
+			&_print_txt ("\t\t\t\tCreated: $ctime\n");
+			if ($origin){&_print_txt ("\t\t\t\tOrigin: $origin\n");}
+			&_print_txt ("\t\t\t\tEncrypted: $enc\n\n");
+            }
+        }
+
+    }
+
     if ($data){
         print colored ['blue'],"    User Data:\n";
 		&_print_txt ("\tUser Data:\n");
@@ -939,10 +1006,23 @@ sub _show_instances {
 	&_print_txt ("\n");
 }
 
+sub _sec_convert {
+    $total_sec=shift;
+    $secs=$total_sec%60;
+    $mins=($total_sec/60)%60;
+    $hours=($total_sec/(60*60))%24;
+    $days=int($total_sec/(24*60*60));
+    if ($days){$run_time= "$days day ";}
+    if ($hours){$run_time="$run_time" . "$hours hours ";}
+    if ($mins){$run_time="$run_time" . "$mins minutes ";}
+    if ($secs){$run_time="$run_time" . "$secs seconds";}
+    return($run_time);
+}
+
 sub _myexit{
 	$EC=shift;
 	if ($EC eq "2") {
-		system("rm -f /tmp/$OFILE.*");
+        unlink "/tmp/$OFILE.*";
 	}
 	if ( @OUTPUT && $EC ne "2" ) {
 		foreach (@OUTPUT) {
@@ -954,11 +1034,12 @@ sub _myexit{
 				$myOFILE=$OFILE . ".json";
                 chomp($end=`date`);
                 $es=time();
-                $run_time = $es - $ss;
+                $run_secs = $es - $ss;
+                &_sec_convert($run_secs);
                 $h_href{$OFILE}{INFO}{Totals}{"Total Instances found"}=$h_total;
                 $h_href{$OFILE}{INFO}{Execution}{Start}=$start;
                 $h_href{$OFILE}{INFO}{Execution}{End}=$end;
-                $h_href{$OFILE}{INFO}{Execution}{Time}="$run_time seconds";
+                $h_href{$OFILE}{INFO}{Execution}{Time}="$run_time";
                 &_print_json(\%h_href);
                 close($myOFILE);
 				push @files,"/tmp/$myOFILE";
@@ -980,7 +1061,7 @@ $SIG {"TERM"} = \&_term_exit;
 $SIG {"HUP"} = \&_term_exit;
 $SIG {"INT"} = \&_int_exit;
 
-system("clear");
+print "\033[2J";    #clear the screen
 
 if (! $ARGV[0]) {
 	$EC="1";
