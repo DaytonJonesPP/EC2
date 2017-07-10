@@ -18,9 +18,13 @@
 #      CREATED: 05/06/2017 02:18:53 PM
 #     REVISION: ---
 #===============================================================================
+# Test for required modules
 BEGIN {
-    @MODULES=("Getopt::Long","JSON","List::MoreUtils","Term::ANSIColor","VM::EC2");
-    foreach $m (@MODULES) {eval("use $m");if ($@) {die "\n\t!!! Error: $m module not found!!!\n\n\tPlease install the $m perl module:\n\t\'perl -MCPAN -e 'install $m\' or \'cpan $m\'\n\n";}}
+    @MODULES=("Switch","Getopt::Long","JSON","List::MoreUtils","Term::ANSIColor","VM::EC2");
+    foreach $m (@MODULES) {eval("use $m");if ($@) {warn "\n\t!!! Error: $m module not found!!!\n\n\tPlease install the $m perl module:\n\t\'perl -MCPAN -e 'install $m\' or \'cpan $m\'\n\n";$missing="yes";}}
+    if ($missing) {
+        exit 1;
+    }
 }
 
 ## Variable Declaration
@@ -52,6 +56,8 @@ sub _more_info {
         export EC2_ACCESS_KEY=<aws access id>
         export EC2_REGION=<aws region to query>
         export EC2_URL=<API endpoint to use>
+
+      if no URL is given, $PROGNAME_SHORT will pick the default for the given region
 
     "--config <opt=val>" will override environment variables
 
@@ -118,7 +124,7 @@ sub _help {
                 instance=<instance id>
                 name=<hostname>
                 type=<instance type>
-				tag=<item:value>
+                tag=<item:value>
         --conf <opt=val>            set EC2 config options
             valid options:
                 region=<region>
@@ -186,6 +192,26 @@ sub _print_txt{
     }
 }
 
+sub _set_url {
+    switch ($ec2_region) {
+    case "ap-northeast-1"   { $ec2_url="http://ec2.ap-northeast-1.amazonaws.com" }
+    case "ap-northeast-2"   { $ec2_url="http://ec2.ap-northeast-2.amazonaws.com" }
+    case "ap-south-1"       { $ec2_url="http://ec2.ap-south-1.amazonaws.com" }
+    case "ap-southeast-1"   { $ec2_url="http://ec2.ap-southeast-1.amazonaws.com" }
+    case "ap-southeast-2"   { $ec2_url="http://ec2.ap-southeast-2.amazonaws.com" }
+    case "ca-central-1"     { $ec2_url="http://ec2.ca-central-1.amazonaws.com" }
+    case "eu-central-1"     { $ec2_url="http://ec2.eu-central-1.amazonaws.com" }
+    case "eu-west-1"        { $ec2_url="http://ec2.eu-west-1.amazonaws.com" }
+    case "eu-west-2"        { $ec2_url="http://ec2.eu-west-2.amazonaws.com" }
+    case "sa-east-1"        { $ec2_url="http://ec2.sa-east-1.amazonaws.com" }
+    case "us-east-1"        { $ec2_url="http://ec2.us-east-1.amazonaws.com" }
+    case "us-east-2"        { $ec2_url="http://ec2.us-east-2.amazonaws.com" }
+    case "us-west-1"        { $ec2_url="http://ec2.us-west-1.amazonaws.com" }
+    case "us-west-2"        { $ec2_url="http://ec2.us-west-2.amazonaws.com" }
+    else                    { $ec2_url="http://ec2.amazonaws.com" }
+    }
+}
+
 sub _check_vars {
     if (! $ec2_access_id) {
         $missing="true";
@@ -200,8 +226,8 @@ sub _check_vars {
         $var=$var . " \"ec2_region\"";
     }
     if (! $ec2_url) {
-        $missing="true";
-        $var=$var . " \"ec2_url\"";
+        #$ec2_url="http://ec2.amazonaws.com";
+        _set_url;
     }
     if ($missing){
 		$EC="1";
@@ -1078,4 +1104,3 @@ _get_opts;
 
 # cleanup and exit
 _myexit 0;
-
