@@ -18,7 +18,6 @@
 #      CREATED: 05/06/2017 02:18:53 PM
 #     REVISION: ---
 #===============================================================================
-# Test for required modules
 BEGIN {
     @MODULES=("Getopt::Long","JSON","List::MoreUtils","Term::ANSIColor","VM::EC2");
     foreach $m (@MODULES) {eval("use $m");if ($@) {die "\n\t!!! Error: $m module not found!!!\n\n\tPlease install the $m perl module:\n\t\'perl -MCPAN -e 'install $m\' or \'cpan $m\'\n\n";}}
@@ -879,14 +878,16 @@ sub _show_instances {
                 $ctime = $vol->createTime;
                 $origin      = $vol->from_snapshot;
                 $enc         = $vol->encrypted;
+##
 				$vtype		= $vol->volumeType;
 				$iops		= $vol->iops;
+##
                 if ($enc){
                     $enc="True";
                 }else{
                     $enc="False";
                 }
-            printf("%-21s %-50s\n","    ","Name: $devName");
+            printf("%-21s %-50s\n","    ","$devName");
             printf("%-26s %-50s\n","    ","ID: $vid");
             printf("%-26s %-50s\n","    ","Type: $vtype");
             printf("%-26s %-50s\n","    ","Delete on Termination: $delete");
@@ -909,7 +910,7 @@ sub _show_instances {
 			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Created}="$ctime";
 			if ($origin){$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Origin}="$origin";}
 			$h_href{$OFILE}{REGIONS}{$my_r}{Instances}{$id}{Volumes}{$devName}{Encrypted}="$enc";
-			&_print_txt ("\t\t\tName: $devName\n");
+			&_print_txt ("\t\t\t$devName\n");
 			&_print_txt ("\t\t\t\tID: $vid\n");
 			&_print_txt ("\t\t\t\tType: $vtype\n");
 			&_print_txt ("\t\t\t\tDelete on Termination: $delete\n");
@@ -960,10 +961,10 @@ sub _show_instances {
 		    $sg 		= $ec2->describe_security_groups($g);
 		    @gperms_i		= $sg->ipPermissions;
 		    @gperms_e		= $sg->ipPermissionsEgress;
-			printf("%-21s %-50s\n","    ","ID: $gid");
-			printf("%-26s %-50s\n","    ","Name: $gname");
-			&_print_txt ("\t\t\tID: $gid\n");
-			&_print_txt ("\t\t\t\tName: $gname\n");
+			printf("%-21s %-50s\n","    ","$gname");
+			printf("%-26s %-50s\n","    ","ID: $gid");
+			&_print_txt ("\t\t\t$gname\n");
+			&_print_txt ("\t\t\t\tID: $gid\n");
 			if (@gperms_i) {
 				printf("%-26s %-50s\n","    ","Ingress Rules:");
 				&_print_txt ("\t\t\t\tIngress Rules:\n");
@@ -1077,3 +1078,4 @@ _get_opts;
 
 # cleanup and exit
 _myexit 0;
+
