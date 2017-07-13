@@ -81,9 +81,9 @@ sub _more_info {
                 "$PROGNAME --search tag=Version:2.0.1"
                 "$PROGNAME -s tag=component:web -s tag=owner:Fred"
 
-    *  Only hostname searches will wildcard searches (*<name>*) so the more
+    *  Only hostname and role searches are wildcard searches (*<name>*) so the more
         exact the name entered, the more precise the results.  Searches are case
-        sensitive.
+        sensitive though.
 
     * Multiple "--output" formats can be selected
 
@@ -127,6 +127,7 @@ sub _help {
                 name=<hostname>
                 type=<instance type>
                 tag=<item:value>
+                role=<IAM Role>
         --conf <opt=val>            set EC2 config options
             valid options:
                 region=<region>
@@ -363,6 +364,32 @@ sub _get_opts {
             }elsif ($type eq "tag") {
                 $s_tag=$s_tag . "::" . $what;
                 $s_t="true";
+            }elsif ($type eq "role") {
+                $s_role=$s_role . ":" . $what;
+                $s_r="true";
+            }
+        }
+        if ($s_r){
+            foreach ($s_role){
+                my @values = split(/:/, $s_role);
+                foreach my $ir (@values){
+                    next if ($ir eq "");
+                    print "Searching for role: $ir in all regions...\n";
+                    if ($print_txt){printf TXT ("%s\n","Searching for role: $ir in all regions...");}
+					foreach my $r (@r_name){
+                    	&_search_iam_role($r,$ir);
+						$count=scalar(@i);
+                        if ($count lt "1"){
+                            #print "\t$s not found in $r\n";
+                        } else {
+                            foreach (@i) {
+                                printf("%s%s%s\n", "[", colored($_,'yellow'), "]");
+                                if ($print_txt){printf TXT ("%s\n","[$_]");}
+                                _show_instances($_,$r);
+                            }
+                        }
+					}
+                }
             }
         }
         if ($s_t){
@@ -795,6 +822,23 @@ sub _show_types {
         _show_instances($h);
 	}
 }
+
+sub _search_iam_role () {
+    $my_ec2_region=shift;
+    $s_ir=shift;
+    undef @i;
+    $ec2 = VM::EC2->new(-access_key => $ec2_access_id,-secret_key => $ec2_secret_key,-region=>$my_ec2_region,-endpoint => $ec2_url) or die "Error: $!\n";
+    #iam-instance-profile.arn,Values=*Sight*
+    @i = $ec2->describe_instances(-filter=>{'instance-state-name'=>['pending','running','shutting-down','stopping','stopped'],'iam-instance-profile.arn'=>"*$s_ir*"});
+    $h_count=scalar(@i);
+    if ($h_total){
+        $h_total= $h_total + $h_count;
+    }else{
+        $h_total=$h_count;
+    }
+    return @i;
+}
+
 
 sub _search_instances () {
     $s_region=shift;
