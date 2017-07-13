@@ -11,11 +11,14 @@
 #      OPTIONS: ---
 # REQUIREMENTS: AWS id/secret credentials
 #        NOTES: ---
-#       AUTHOR: Dayton Jones (dj), dayton@gecko.org
+#       AUTHOR: Dayton Jones (dj), djones@proofpoint.com
+#      COMPANY: Proofpoint
+# ORGANIZATION: Social Media Products
 #      VERSION: 0.1.0
-#      CREATED: 04/28/2017 02:18:53 PM
+#      CREATED: 05/06/2017 02:18:53 PM
 #     REVISION: ---
 #===============================================================================
+
 
 ## delete files from bucket
 ##  $bucket->delete_key('reminder.txt') or die $s3->err . ": " . $s3->errstr;
