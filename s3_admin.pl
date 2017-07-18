@@ -18,8 +18,6 @@
 #      CREATED: 05/06/2017 02:18:53 PM
 #     REVISION: ---
 #===============================================================================
-
-
 ## delete files from bucket
 ##  $bucket->delete_key('reminder.txt') or die $s3->err . ": " . $s3->errstr;
 ##  $bucket->delete_key('1.JPG')        or die $s3->err . ": " . $s3->errstr;
@@ -34,10 +32,60 @@ BEGIN {
     }
 }
 
+## Variable Declaration
+chop($PROGNAME=`basename $0`);
+chop($PROGNAME_SHORT=`basename -s .pl $0`);
+$version="0.1.0";
+#$USER=$ENV{USER};
+#chop($RUNID=`/bin/date +%Y%m%d%H%M%S`);
+#$OFILE="$PROGNAME_SHORT" . "-$USER" . "_$RUNID";
+$sw=`tput cols`;
+
 if ($ENV{'EC2_ACCESS_KEY'}) {$ec2_access_id =  $ENV{'EC2_ACCESS_KEY'}};
 if ($ENV{'EC2_SECRET_KEY'}) {$ec2_secret_key =  $ENV{'EC2_SECRET_KEY'}};
 
 $s3 = Amazon::S3->new({aws_access_key_id=> $ec2_access_id,aws_secret_access_key => $ec2_secret_key,retry=> 1});
+
+sub _version {
+    print colored ['green'],"$PROGNAME v$version\n";
+}
+
+sub _term_exit {
+    print colored ['red'],"\n$PROGNAME: Terminated\n";
+    $EC="1";
+    if ($output){
+        &_print_txt ("$PROGNAME: Terminated\n");
+    }
+    _myexit ($EC);
+}
+
+sub _int_exit {
+    print colored ['yellow'],"\n$PROGNAME: " . colored ['red'], "Aborted by user\n";
+    $EC="1";
+    if ($output) {
+        &_print_txt ("Aborted by user\n");
+    }
+    _myexit ($EC);
+}
+
+sub _myexit{
+    $EC=shift;
+    exit $EC;
+}
+
+sub _help {
+    _version;
+    print qq|
+
+    Use:
+       $PROGNAME [ --bucket <bucket name> \| --help \| --version ]
+
+	When run, $PROGNAME_SHORT will list all current buckets.  If <bucket name> is specified
+	then after all buckets are listed, the contents of the specified bucket will be
+	enumerated and info given on each "key"
+
+|;
+}
 
 sub _get_s3_buckets {
 	$response = $s3->buckets;
@@ -91,11 +139,11 @@ sub _list_s3_bucket_contents {
 			my $key_OwnerName = $key->{owner_displayname};
 
             printf("%-30s %-50s\n", colored("    Item:",'blue'),$key_name);
-            printf("%-30s %-50s\n", colored("    Owner:",'blue'),$key_OwnerName);
-            printf("%-30s %-50s\n", colored("    Last Modified:",'blue'),$key_lm);
-            printf("%-30s %-50s\n", colored("    MD5 sum:",'blue'),$key_etag);
-            printf("%-30s %-50s\n", colored("    Type:",'blue'),$key_class);
-            printf("%-30s %-50s\n\n", colored("    Size:",'blue'),$b_size);
+            printf("%-40s %-50s\n", colored("       Owner:",'blue'),$key_OwnerName);
+            printf("%-40s %-50s\n", colored("       Last Modified:",'blue'),$key_lm);
+            printf("%-40s %-50s\n", colored("       MD5 sum:",'blue'),$key_etag);
+            printf("%-40s %-50s\n", colored("       Type:",'blue'),$key_class);
+            printf("%-40s %-50s\n\n", colored("       Size:",'blue'),$b_size);
   		}
 		$f_count =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g; # add thousands seperator
 		&_prettyBytes($tot_bytes);
@@ -138,16 +186,72 @@ sub _sec_convert {
     return($run_time);
 }
 
-_list_s3_buckets;
-
-if ($ARGV[0]){
-    $lb = $ARGV[0];
-} else {
-    ### get random bucket
-    $hash = { mykey => \@{$bucket_list} };
-    $b = $hash->{mykey}[ rand(@{ $hash->{mykey} }) ];
-    $lb = $b->{bucket};
-    ###
+sub _check_vars {
+    if (! $ec2_access_id) {
+        $missing="true";
+        $var=$var . " \"ec2_access_id\"";
+    }
+    if (! $ec2_secret_key) {
+        $missing="true";
+        $var=$var . " \"ec2_secret_key\"";
+    }
+    if ($missing){
+        $EC="1";
+        print colored ['red'],("!" x $sw);
+        printf("\n\n\t\t%s\n\t\t%s\n\n", colored("Please specify the following options:",'red'),colored("$var",'yellow'));
+        print colored ['red'],("!" x $sw);
+        print "\n\n";
+        _help;
+        _myexit ($EC);
+    }
 }
 
-_list_s3_bucket_contents($lb);
+sub _get_opts {
+    GetOptions(
+        'version'           =>\$VERSION,
+        'bucket:s'         	=>\$BUCKET,
+#        'output:s'          =>\@OUTPUT,
+        'help|?'            =>\$HELP);
+
+    if ($HELP) {
+        _help;
+        &_myexit;
+    }
+
+    if ($VERSION) {
+        _version;
+       _myexit;
+    }
+
+	&_check_vars;
+}
+
+## Main
+$SIG {"TERM"} = \&_term_exit;
+$SIG {"HUP"} = \&_term_exit;
+$SIG {"INT"} = \&_int_exit;
+
+print "\033[2J";    #clear the screen
+
+# process options and gather/display results in _get_opts
+#$commandline = join " ", $0, @ARGV;
+_get_opts;
+
+# list all buckets
+_list_s3_buckets;
+
+# enumerate contents of $BUCKET
+if ($BUCKET){
+	_list_s3_bucket_contents($BUCKET);
+}
+
+#if ($ARGV[0]){
+#    $lb = $ARGV[0];
+#} else {
+#    ### get random bucket
+#    $hash = { mykey => \@{$bucket_list} };
+#    $b = $hash->{mykey}[ rand(@{ $hash->{mykey} }) ];
+#    $lb = $b->{bucket};
+#    ###
+#}
+#_list_s3_bucket_contents($lb);
